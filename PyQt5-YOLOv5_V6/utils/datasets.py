@@ -274,7 +274,7 @@ class LoadWebcam:  # for inference
         img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
         img = np.ascontiguousarray(img)
 
-        return img_path, img, img0, None, s
+        return img_path, img, img0, self.cap, s
 
     def __len__(self):
         return 0

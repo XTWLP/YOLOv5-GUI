@@ -1,28 +1,26 @@
 # -*- coding: utf-8 -*-
-from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog, QWidget
-from main_ui_dark import Ui_MainWindow
-from PyQt5.QtCore import pyqtSignal, QThread, QTimer
-from PyQt5.QtGui import QImage, QPixmap,QPainter
+import os
 import sys
 import time
 from pathlib import Path
-import numpy as np
+
 import cv2
+import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
-import os
+from PyQt5.QtCore import pyqtSignal, QThread
+from PyQt5.QtGui import QImage, QPixmap, QPainter
+from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog
 
+from main_ui_light import Ui_MainWindow
 
 FILE = Path(__file__).absolute()
 sys.path.append(FILE.parents[0].as_posix())  # add yolov5/ to path
 
-
-
 from models.common import DetectMultiBackend
-from utils.datasets import IMG_FORMATS, VID_FORMATS, LoadImages, LoadStreams
-from utils.general import (LOGGER, check_file, check_img_size, check_imshow, check_requirements, colorstr,
-                           increment_path, non_max_suppression, print_args, scale_coords, strip_optimizer, xyxy2xywh)
-from utils.plots import Annotator, colors, save_one_box
+from utils.datasets import LoadImages, LoadWebcam
+from utils.general import (check_img_size, check_imshow, non_max_suppression, scale_coords)
+from utils.plots import Annotator, colors
 from utils.torch_utils import select_device, time_sync
 
 
@@ -82,7 +80,7 @@ class DetThread(QThread):
         if self.source.isnumeric():
             view_img = check_imshow()
             cudnn.benchmark = True  # set True to speed up constant image size inference
-            dataset = LoadStreams(self.source, img_size=imgsz, stride=stride, auto=pt and not jit)
+            dataset = LoadWebcam(self.source, img_size=imgsz, stride=stride)
             bs = len(dataset)  # batch_size
         else:
             dataset = LoadImages(self.source, img_size=imgsz, stride=stride, auto=pt and not jit)
@@ -127,13 +125,11 @@ class DetThread(QThread):
                         label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
                         annotator.box_label(xyxy, label, color=colors(c, True))
 
-
-            time.sleep(1/40)
+            time.sleep(1 / 40)
             # print(type(im0s))
             self.send_img.emit(im0)
             self.send_raw.emit(im0s if isinstance(im0s, np.ndarray) else im0s[0])
             self.send_statistic.emit(statistic_dic)
-
 
 
 class MainWindow(QMainWindow, Ui_MainWindow):
@@ -162,20 +158,21 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     # 更改置信度
     def conf_change(self, method):
-        self.det_thread.conf_thres = self.horizontalSlider.value()/100
-        self.statusbar.showMessage("The confidence threshold is modified to："+str(self.det_thread.conf_thres))
+        self.det_thread.conf_thres = self.horizontalSlider.value() / 100
+        self.statusbar.showMessage("The confidence threshold is modified to：" + str(self.det_thread.conf_thres))
 
     def status_bar_init(self):
         self.statusbar.showMessage('')
 
     def open_file(self):
-        source = QFileDialog.getOpenFileName(self, 'Select a video or picture', os.getcwd(), "Pic File(*.mp4 *.mkv *.avi *.flv "
-                                                                           "*.jpg *.png)")
+        source = QFileDialog.getOpenFileName(self, 'Select a video or picture', os.getcwd(),
+                                             "Pic File(*.mp4 *.mkv *.avi *.flv "
+                                             "*.jpg *.png)")
         if source[0]:
             self.det_thread.source = source[0]
         self.statusbar.showMessage('Loading files：{}'.format(os.path.basename(self.det_thread.source)
-                                                    if os.path.basename(self.det_thread.source) != '0'
-                                                    else 'Webcam'))
+                                                             if os.path.basename(self.det_thread.source) != '0'
+                                                             else 'Webcam'))
 
     def term_or_con(self):
         if self.RunProgram.isChecked():
@@ -183,8 +180,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.statusbar.showMessage('Now detecting >> Model：{}，File：{}'.
                                        format(os.path.basename(self.det_thread.weights),
                                               os.path.basename(self.det_thread.source)
-                                                               if os.path.basename(self.det_thread.source) != '0'
-                                                               else 'Webcam'))
+                                              if os.path.basename(self.det_thread.source) != '0'
+                                              else 'Webcam'))
         else:
             self.det_thread.terminate()
             if hasattr(self.det_thread, 'vid_cap'):
